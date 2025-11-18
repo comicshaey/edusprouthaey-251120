@@ -1,6 +1,84 @@
-//251118화
+// 251118화 수정: fetch 실패 시에도 직종 목록이 뜨도록 내장 스냅샷 사용
 
+// 로컬용 기본 스냅샷 (영양사 / 조리사 / 조리실무사 + 정액급식비·상여·명절휴가비)
+const FALLBACK_DATA = {
+  meta: {
+    월통상임금산정시간: 209,
+    사용스냅샷: "2025.03.01"
+  },
+  snapshot: {
+    fixedAmounts: {
+      정액급식비: 150000,
+      정기상여금: 83330,
+      명절휴가비: 154160,
+      "교무행정사(직무수당)": 30000
+    },
+    jobs: [
+      {
+        직종: "영양사",
+        기본급: 2266000,
+        근속수당등급: "◎",
+        적용: {
+          정액급식비: "○",
+          위험수당: "×",
+          급식운영수당: "○",
+          기술정보수당: "×",
+          특수업무수당: "×",
+          특수교육지원수당: "×",
+          면허가산수당: "◎",
+          가족수당: "○",
+          정기상여금: "○",
+          명절휴가비: "○",
+          맞춤형복지: "○",
+          "교무행정사(직무수당)": "×"
+        },
+        일급: 86730
+      },
+      {
+        직종: "조리사",
+        기본급: 2169300,
+        근속수당등급: "◎",
+        적용: {
+          정액급식비: "○",
+          위험수당: "○",
+          급식운영수당: "×",
+          기술정보수당: "×",
+          특수업무수당: "×",
+          특수교육지원수당: "×",
+          면허가산수당: "×",
+          가족수당: "○",
+          정기상여금: "○",
+          명절휴가비: "○",
+          맞춤형복지: "○",
+          "교무행정사(직무수당)": "×"
+        },
+        일급: 83030
+      },
+      {
+        직종: "조리실무사",
+        기본급: 2066000,
+        근속수당등급: "◎",
+        적용: {
+          정액급식비: "○",
+          위험수당: "○",
+          급식운영수당: "×",
+          기술정보수당: "×",
+          특수업무수당: "×",
+          특수교육지원수당: "×",
+          면허가산수당: "×",
+          가족수당: "○",
+          정기상여금: "○",
+          명절휴가비: "○",
+          맞춤형복지: "○",
+          "교무행정사(직무수당)": "×"
+        },
+        일급: 79080
+      }
+    ]
+  }
+};
 
+// data.json 로딩 (서버에서 열면 data.json 우선, file://에서 실패하면 FALLBACK_DATA 사용)
 async function loadData(){
   const urls = ['data.json', './data.json', '/ordinary-wage/data.json'];
   let lastErr = null;
@@ -15,7 +93,8 @@ async function loadData(){
       lastErr = e;
     }
   }
-  throw lastErr || new Error('data.json 로딩 실패');
+  console.warn('[ordinary-wage] data.json을 불러오지 못해 내장 스냅샷(FALLBACK_DATA)을 사용합니다.');
+  return FALLBACK_DATA;
 }
 
 // 돈 표기 (원단위 반올림)
@@ -23,7 +102,7 @@ function money(n){
   return (Math.round(n)||0).toLocaleString();
 }
 
-// 원 단위 절사
+// 10원 단위 절사
 function floor10(v){
   const n = Number(v) || 0;
   return Math.floor(n / 10) * 10;
@@ -121,16 +200,14 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   const outEduBaseHourly = document.getElementById('outEduBaseHourly');
   const outEduOverHourly = document.getElementById('outEduOverHourly');
   const outEduAmount     = document.getElementById('outEduAmount');
-  const eduCalcBtn       = document.getElementById('eduCalcBtn');  // 버튼을 별도 안 쓰지만 안전용
-  const eduResetBtn      = document.getElementById('eduResetBtn'); // (없어도 동작)
 
   let data;
   try{
     data = await loadData();
   }catch(e){
-    console.error('[ordinary-wage] 데이터 로딩 실패:', e);
-    jobSel.innerHTML = '<option>데이터 로딩 실패 (F12→Console 확인)</option>';
-    return;
+    // 여기까지 올 일은 거의 없지만, 혹시 모르면 FALLBACK라도 사용
+    console.error('[ordinary-wage] 데이터 로딩 완전 실패, 내장 스냅샷으로 대체:', e);
+    data = FALLBACK_DATA;
   }
 
   const snap = data.snapshot || {jobs:[], fixedAmounts:{}};
@@ -158,7 +235,7 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   }
 
   if(jobSel.options.length === 0){
-    console.warn('[ordinary-wage] jobs 비어 있음 또는 대상 직종 없음: data.json 구조 확인 필요');
+    console.warn('[ordinary-wage] jobs 비어 있음 또는 대상 직종 없음: data.json / FALLBACK_DATA 구조 확인 필요');
     jobSel.innerHTML = '<option>직종 데이터 없음</option>';
   }
 
@@ -194,11 +271,10 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   let lastJob = null;   // 최근 선택 직종 정보
 
   // 방학 집체교육: 직종 자동모드 적용
-  function applyVacAuto(snap){
+  function applyVacAuto(){
     if(!vacAuto || !lastJob) return;
 
     if(vacAuto.checked){
-      // 자동 모드: 직종 기준 값 채워넣고 입력 비활성화
       const base = Number(lastJob.기본급 || 0);
       const fixed = snap.fixedAmounts || {};
       const meal = Number(fixed["정액급식비"] || 0);
@@ -211,7 +287,6 @@ document.addEventListener('DOMContentLoaded', async ()=>{
       vacBasic.classList.add('disabled');
       vacMeal.classList.add('disabled');
     }else{
-      // 수동 모드: 값을 유지한 채로 활성화
       vacBasic.disabled = false;
       vacMeal.disabled  = false;
       vacBasic.classList.remove('disabled');
@@ -252,7 +327,8 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   }
 
   function recalc(){
-    const job = (snap.jobs||[]).find(j=>j.직종===jobSel.value) || (snap.jobs||[]).find(j=>targetJobs.includes(j.직종));
+    const job = (snap.jobs||[]).find(j=>j.직종===jobSel.value) ||
+                (snap.jobs||[]).find(j=>targetJobs.includes(j.직종));
     if(!job){ return; }
 
     lastJob = job;
@@ -278,9 +354,7 @@ document.addEventListener('DOMContentLoaded', async ()=>{
     outSum.textContent    = money(sum);
     outHourly.textContent = money(hourly);
 
-    // 직종 바뀌면 방학 집체교육 자동금액도 갱신
-    applyVacAuto(snap);
-    // 통상임금 시급 변경되면 온라인 교육 금액도 갱신
+    applyVacAuto();
     recalcEdu();
   }
 
@@ -300,7 +374,7 @@ document.addEventListener('DOMContentLoaded', async ()=>{
 
     const monthlyTotal = basic + meal;
     const dailyRaw = monthlyTotal / days;
-    const dailyPay = floor10(dailyRaw); // 10원 절사
+    const dailyPay = floor10(dailyRaw);
 
     const hourlyRaw = dailyPay / 8;
     const hourlyPay = floor10(hourlyRaw);
@@ -334,17 +408,15 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   }
 
   function resetVacation(){
-    // 자동모드 유지, 직종 기준 값 다시 채우기
     vacAuto.checked = true;
     vacDays.value   = '31';
     vacEduH.value   = '6';
     vacMinWage.value= '10030';
     vacResult.style.display = 'none';
     vacResult.innerHTML = '';
-    applyVacAuto(snap);
+    applyVacAuto();
   }
 
-  // 학기 중 온라인 교육 초기화
   function resetEdu(){
     eduUseManual.checked = false;
     eduManualHourly.value = '';
@@ -354,8 +426,12 @@ document.addEventListener('DOMContentLoaded', async ()=>{
     recalcEdu();
   }
 
-  // 수당 입력칸 기본 구성 (첫 직종 기준)
-  rebuildAllowanceInputs(allowBox, (snap.jobs||[]).find(j=>targetJobs.includes(j.직종)) || {}, snap.fixedAmounts || {});
+  // 수당 입력칸 기본 구성 (첫 대상 직종 기준)
+  rebuildAllowanceInputs(
+    allowBox,
+    (snap.jobs||[]).find(j=>targetJobs.includes(j.직종)) || {},
+    snap.fixedAmounts || {}
+  );
 
   // 이벤트 바인딩
   jobSel.addEventListener('change', recalc);
@@ -375,14 +451,12 @@ document.addEventListener('DOMContentLoaded', async ()=>{
     recalc();
   });
 
-  // 방학 집체교육
   if(vacCalcBtn)  vacCalcBtn.addEventListener('click', calcVacation);
   if(vacResetBtn) vacResetBtn.addEventListener('click', resetVacation);
   if(vacAuto){
-    vacAuto.addEventListener('change', ()=>applyVacAuto(snap));
+    vacAuto.addEventListener('change', applyVacAuto);
   }
 
-  // 학기중 온라인 교육
   if(eduUseManual){
     eduUseManual.addEventListener('change', ()=>{
       const useManual = eduUseManual.checked;
