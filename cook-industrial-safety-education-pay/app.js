@@ -172,32 +172,62 @@ function computeTenureAmount(years){
   return y * 40000;
 }
 
-/* -------------------------------
-   ★ 최종 합계 업데이트 함수
---------------------------------*/
-function updateFinalTotal() {
-  const vacElm = document.getElementById('outVacFinal');
-  const onlineElm = document.getElementById('outOnlineFinal');
-  const totalElm = document.getElementById('outTotalFinal');
 
-  // 방학 집체교육 최종액
+
+/* 최종 합계 */
+
+function updateFinalTotal() {
+  const vacElm    = document.getElementById('outVacFinal');
+  const onlineElm = document.getElementById('outOnlineFinal');
+  const totalElm  = document.getElementById('outTotalFinal');
+
+  // 합계 카드가 아예 없으면 그냥 종료 (에러 방지)
+  if (!vacElm || !onlineElm || !totalElm) return;
+
+  // 1) 방학 중 집체교육 최종 지급액 읽기
   let vacAmount = 0;
   const vacRes = document.getElementById('vacResult');
-  if (vacRes && vacRes.innerText.includes('최종 지급액')) {
-    const m = vacRes.innerHTML.match(/최종 지급액<\/td><td[^>]*>([\d,]+)/);
-    if (m) vacAmount = Number(m[1].replace(/,/g,''));
+
+  if (vacRes && vacRes.style.display !== 'none') {
+    // "최종 지급액 123,456" 이런 식으로 들어가 있으니까 텍스트 기준으로 파싱
+    const text = vacRes.innerText.replace(/\s+/g, ' '); // 공백 정리
+    const m = text.match(/최종 지급액\s*([\d,]+)/);
+    if (m) {
+      vacAmount = Number(m[1].replace(/,/g, '')) || 0;
+    }
   }
 
-  // 온라인 교육 최종액
+  // 2) 온라인 교육 인건비 최종액 읽기
   let onlineAmount = 0;
-  const onlineTxt = document.getElementById('outEduAmount').innerText || '0';
-  onlineAmount = Number(onlineTxt.replace(/,/g,''));
+  const outEdu = document.getElementById('outEduAmount');
+  if (outEdu) {
+    const t = outEdu.innerText.trim();
+    if (t && t !== '-') {
+      onlineAmount = Number(t.replace(/[^\d]/g, '')) || 0;
+    }
+  }
 
-  // 표시
-  vacElm.textContent = vacAmount.toLocaleString() + '원';
-  onlineElm.textContent = onlineAmount.toLocaleString() + '원';
-  totalElm.textContent = (vacAmount + onlineAmount).toLocaleString() + '원';
+  // 3) 표시 (값 없으면 '-' 유지, 있으면 "123,456원")
+  if (vacAmount > 0) {
+    vacElm.textContent = vacAmount.toLocaleString('ko-KR') + '원';
+  } else {
+    vacElm.textContent = '-';
+  }
+
+  if (onlineAmount > 0) {
+    onlineElm.textContent = onlineAmount.toLocaleString('ko-KR') + '원';
+  } else {
+    onlineElm.textContent = '-';
+  }
+
+  const total = vacAmount + onlineAmount;
+  if (total > 0) {
+    totalElm.textContent = total.toLocaleString('ko-KR') + '원';
+  } else {
+    totalElm.textContent = '-';
+  }
 }
+
 
 /* ----------------------------------------------------
    DOMContentLoaded
