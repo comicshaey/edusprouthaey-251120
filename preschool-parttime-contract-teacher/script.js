@@ -11,7 +11,7 @@ function toNumber(v) {
   return Number.isFinite(n) ? n : 0;
 }
 
-// 원단위 절삭(10원 단위 버림: 1111 → 1110)
+// 원단위 절삭
 function floorTo10(v) {
   const n = Number(v) || 0;
   return Math.floor(n / 10) * 10;
@@ -787,3 +787,4 @@ document.addEventListener("DOMContentLoaded", () => {
     renderDocGuide();
   }
 });
+
