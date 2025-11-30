@@ -183,6 +183,18 @@
     .row:not(:first-child) > .cell:nth-child(1) .date{color:var(--sun);}
     .row:not(:first-child) > .cell:nth-child(7) .date{color:var(--sat);}
 
+    /* 🔴 공휴일 / 🟣 재량휴업일 색상 우선 적용 */
+    .date.holiday-national{
+      color:var(--sun);
+    }
+    .date.holiday-schooloff{
+      color:#8b00af;
+    }
+    .date.holiday-national .date-link,
+    .date.holiday-schooloff .date-link{
+      color:inherit;
+    }
+
     /* ------------------------------
        버튼
     ------------------------------ */
@@ -324,6 +336,38 @@
   const academicYear=getAcademicYearByDate(startDate);
   document.getElementById("title").textContent=`${academicYear}학년도 주간 업무 일정 달력`;
 
+  // ================================
+  //   🇰🇷 기본 양력 공휴일 + 추가 공휴일/재량휴업일
+  // ================================
+  function getBaseNationalHolidayList(year){
+    const list = [
+      `${year}-01-01`, // 신정
+      `${year}-03-01`, // 삼일절
+      `${year}-05-05`, // 어린이날
+      `${year}-06-06`, // 현충일
+      `${year}-08-15`, // 광복절
+      `${year}-10-03`, // 개천절
+      `${year}-10-09`, // 한글날
+      `${year}-12-25`  // 성탄절
+    ];
+    return new Set(list);
+  }
+
+  let extraNationalSet = new Set(); // holidays.json → national
+  let schoolOffSet     = new Set(); // holidays.json → schoolOff
+
+  async function loadExtraHolidays(){
+    try{
+      const res = await fetch("holidays.json");
+      if(!res.ok) return;
+      const data = await res.json();
+      extraNationalSet = new Set(data.national || []);
+      schoolOffSet     = new Set(data.schoolOff || []);
+    }catch(e){
+      // 파일 없거나 오류 나면 그냥 기본 공휴일만 사용
+    }
+  }
+
   /* notes */
   let NOTES={};
 
@@ -411,9 +455,21 @@
       const key=ymd(y,m,day);
       const txt=NOTES[key]||"";
       const monthStart=`${y}-${pad(m)}`;
+
+      // 🔎 공휴일 / 재량휴업일 판정
+      const baseHolidays = getBaseNationalHolidayList(y);
+      const isNationalHoliday = baseHolidays.has(key) || extraNationalSet.has(key);
+      const isSchoolOff       = schoolOffSet.has(key);
+
+      let dateClass = "date";
+      if(isNationalHoliday) dateClass += " holiday-national";
+      if(isSchoolOff)       dateClass += " holiday-schooloff";
+
       h+=`
         <div class="cell">
-          <div class="date"><a href="/calendar/calendar-monthly-academic.html?start=${monthStart}&months=1" class="date-link">${m}/${day}</a></div>
+          <div class="${dateClass}">
+            <a href="/calendar/calendar-monthly-academic.html?start=${monthStart}&months=1" class="date-link">${m}/${day}</a>
+          </div>
           <div class="txt">${txt}</div>
         </div>`;
     }
@@ -424,6 +480,7 @@
   }
 
   (async()=>{
+    await loadExtraHolidays(); // 공휴일/재량휴업일 로딩
     const keys=collectHalfKeys(startDate,WEEKS);
     await loadNotes(keys);
 
